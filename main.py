@@ -26,14 +26,23 @@ available_functions = types.Tool(
 system_prompt = """
 You are a helpful AI coding agent.
 
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
+When a user asks a question or makes a request, analyze what you need to do and use the available functions step by step to accomplish the task. You can perform the following operations:
 
 - List files and directories
 - Read file contents
-- Execute Python files with optional arguments
+- Execute Python files with optional arguments  
 - Write or overwrite files
 
+Work methodically through the problem:
+1. First, explore and understand the codebase if needed
+2. Gather the necessary information
+3. Make any required changes
+4. Test your changes if appropriate
+5. Provide a clear final summary of what you accomplished
+
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
+
+When you have completed the user's request, provide a final response explaining what you did.
 """
 
 # Map function names to actual functions
@@ -99,42 +108,78 @@ def main():
         print("Error: Please provide a prompt as a command line argument.")
         sys.exit(1)
     
-    prompt = sys.argv[1]
-    
+    user_prompt = sys.argv[1]
     verbose = "--verbose" in sys.argv
     
     if verbose:
-        print(f"User prompt: {prompt}")
+        print(f"User prompt: {user_prompt}")
     
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], 
-            system_instruction=system_prompt
-        ),
-    )
+    # Initialize conversation with user's request
+    messages = [
+        types.Content(role="user", parts=[types.Part.from_text(text=user_prompt)])
+    ]
     
-    # Check if the LLM wants to call a function
-    if response.function_calls:
-        for function_call_part in response.function_calls:
-            # Actually call the function
-            function_call_result = call_function(function_call_part, verbose)
-            
-            # Verify the response structure
-            if not function_call_result.parts or not hasattr(function_call_result.parts[0], 'function_response'):
-                raise Exception("Invalid function response structure")
-            
-            # Print the result if verbose
+    # Agent loop - maximum 20 iterations
+    max_iterations = 20
+    
+    try:
+        for iteration in range(max_iterations):
             if verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
-    else:
-        # Print normal text response
-        print(response.text)
+                print(f"\n--- Iteration {iteration + 1} ---")
+            
+            # Call the LLM with current conversation history
+            response = client.models.generate_content(
+                model="gemini-2.0-flash-001",
+                contents=messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions], 
+                    system_instruction=system_prompt
+                ),
+            )
+            
+            # Add the model's response to conversation
+            for candidate in response.candidates:
+                messages.append(candidate.content)
+            
+            # Check if we have function calls to execute
+            if response.function_calls:
+                # Execute each function call
+                for function_call_part in response.function_calls:
+                    # Execute the function
+                    function_result = call_function(function_call_part, verbose)
+                    
+                    # Add function result to conversation
+                    messages.append(function_result)
+                    
+                    if verbose:
+                        print(f"-> {function_result.parts[0].function_response.response}")
+                
+                # Continue the loop to let the LLM process the results
+                continue
+            
+            # Check if we have a final text response
+            elif response.text:
+                print("Final response:")
+                print(response.text)
+                break
+            
+            # If no function calls and no text, something went wrong
+            else:
+                print("No response from model. Ending conversation.")
+                break
+        
+        else:
+            # We've hit max iterations
+            print(f"Reached maximum iterations ({max_iterations}). Ending conversation.")
+    
+    except Exception as e:
+        print(f"Error during agent execution: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
     
     if verbose:
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+        print(f"\nConversation ended after {min(iteration + 1, max_iterations)} iterations.")
 
 
 if __name__ == "__main__":
