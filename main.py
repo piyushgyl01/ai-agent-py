@@ -14,6 +14,11 @@ def main():
     
     prompt = sys.argv[1]
     
+    verbose = "--verbose" in sys.argv
+    
+    if verbose:
+        print(f"User prompt: {prompt}")
+    
     response = client.models.generate_content(
         model="gemini-2.0-flash-001",
         contents=prompt
@@ -21,8 +26,9 @@ def main():
     
     print(response.text)
     
-    print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-    print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+    if verbose:
+        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
 
 
 if __name__ == "__main__":
