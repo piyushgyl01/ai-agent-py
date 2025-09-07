@@ -1,24 +1,22 @@
-from functions.get_file_content import get_file_content
+from functions.write_file import write_file
 
 def main():
-    print('get_file_content("calculator", "main.py"):')
-    result1 = get_file_content("calculator", "main.py")
+    # Test 1: Write to lorem.txt (should succeed)
+    print('write_file("calculator", "lorem.txt", "wait, this isn\'t lorem ipsum"):')
+    result1 = write_file("calculator", "lorem.txt", "wait, this isn't lorem ipsum")
     print(result1)
     print()
     
-    print('get_file_content("calculator", "pkg/calculator.py"):')
-    result2 = get_file_content("calculator", "pkg/calculator.py")
+    # Test 2: Write to pkg/morelorem.txt (should succeed and create directory if needed)
+    print('write_file("calculator", "pkg/morelorem.txt", "lorem ipsum dolor sit amet"):')
+    result2 = write_file("calculator", "pkg/morelorem.txt", "lorem ipsum dolor sit amet")
     print(result2)
     print()
     
-    print('get_file_content("calculator", "/bin/cat"):')
-    result3 = get_file_content("calculator", "/bin/cat")
+    # Test 3: Try to write outside working directory (should fail)
+    print('write_file("calculator", "/tmp/temp.txt", "this should not be allowed"):')
+    result3 = write_file("calculator", "/tmp/temp.txt", "this should not be allowed")
     print(result3)
-    print()
-    
-    print('get_file_content("calculator", "pkg/does_not_exist.py"):')
-    result4 = get_file_content("calculator", "pkg/does_not_exist.py")
-    print(result4)
 
 if __name__ == "__main__":
     main()
