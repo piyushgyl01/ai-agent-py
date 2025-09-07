@@ -12,7 +12,6 @@ load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 
-# Available functions for the LLM
 available_functions = types.Tool(
     function_declarations=[
         schema_get_files_info,
@@ -22,7 +21,6 @@ available_functions = types.Tool(
     ]
 )
 
-# System prompt that instructs the LLM on how to use functions
 system_prompt = """
 You are a helpful AI coding agent.
 
@@ -45,7 +43,6 @@ All paths you provide should be relative to the working directory. You do not ne
 When you have completed the user's request, provide a final response explaining what you did.
 """
 
-# Map function names to actual functions
 function_map = {
     "get_files_info": get_files_info,
     "get_file_content": get_file_content,
@@ -54,26 +51,13 @@ function_map = {
 }
 
 def call_function(function_call_part, verbose=False):
-    """
-    Execute a function call and return the result as a types.Content object.
-    
-    Args:
-        function_call_part: A types.FunctionCall with .name and .args properties
-        verbose: Whether to print detailed information about the function call
-    
-    Returns:
-        types.Content object with the function response
-    """
     function_name = function_call_part.name
     function_args = dict(function_call_part.args)
-    
-    # Print function call information
     if verbose:
         print(f"Calling function: {function_name}({function_args})")
     else:
         print(f" - Calling function: {function_name}")
     
-    # Check if function exists
     if function_name not in function_map:
         return types.Content(
             role="tool",
@@ -85,14 +69,11 @@ def call_function(function_call_part, verbose=False):
             ],
         )
     
-    # Add working directory to arguments
     function_args["working_directory"] = "./calculator"
     
-    # Call the function
     function_to_call = function_map[function_name]
     function_result = function_to_call(**function_args)
     
-    # Return the result as a types.Content object
     return types.Content(
         role="tool",
         parts=[
@@ -114,20 +95,16 @@ def main():
     if verbose:
         print(f"User prompt: {user_prompt}")
     
-    # Initialize conversation with user's request
     messages = [
         types.Content(role="user", parts=[types.Part.from_text(text=user_prompt)])
     ]
     
-    # Agent loop - maximum 20 iterations
     max_iterations = 20
     
     try:
         for iteration in range(max_iterations):
             if verbose:
                 print(f"\n--- Iteration {iteration + 1} ---")
-            
-            # Call the LLM with current conversation history
             response = client.models.generate_content(
                 model="gemini-2.0-flash-001",
                 contents=messages,
@@ -137,39 +114,30 @@ def main():
                 ),
             )
             
-            # Add the model's response to conversation
             for candidate in response.candidates:
                 messages.append(candidate.content)
             
-            # Check if we have function calls to execute
             if response.function_calls:
-                # Execute each function call
                 for function_call_part in response.function_calls:
-                    # Execute the function
                     function_result = call_function(function_call_part, verbose)
                     
-                    # Add function result to conversation
                     messages.append(function_result)
                     
                     if verbose:
                         print(f"-> {function_result.parts[0].function_response.response}")
                 
-                # Continue the loop to let the LLM process the results
                 continue
             
-            # Check if we have a final text response
             elif response.text:
                 print("Final response:")
                 print(response.text)
                 break
             
-            # If no function calls and no text, something went wrong
             else:
                 print("No response from model. Ending conversation.")
                 break
         
         else:
-            # We've hit max iterations
             print(f"Reached maximum iterations ({max_iterations}). Ending conversation.")
     
     except Exception as e:
